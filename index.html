@@ -265,6 +265,28 @@
   }
   #muteBtn.show { display: flex; }
   #muteBtn:active { background: rgba(255,255,255,0.95); }
+
+  #installBtn {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 25;
+    padding: 10px 22px;
+    border-radius: 30px;
+    background: #e91e63;
+    color: #fff;
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(233,30,99,0.4);
+    display: none;
+    align-items: center;
+    gap: 6px;
+    pointer-events: auto;
+  }
+  #installBtn:active { background: #c2185b; }
 </style>
 </head>
 <body>
@@ -301,6 +323,7 @@
     </div>
 
     <button id="muteBtn" title="Toggle music">&#x1F507;</button>
+    <button id="installBtn" style="display:none">+ Install App</button>
 
     <audio id="bgm" src="bgm.mp3" loop autoplay muted></audio>
   </div>
@@ -1112,6 +1135,20 @@ gameLoop();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js');
 }
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('installBtn');
+  btn.style.display = 'flex';
+  btn.onclick = async () => {
+    btn.style.display = 'none';
+    deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+  };
+});
 </script>
 </body>
 </html>

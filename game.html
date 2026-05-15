@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy Birthday Eya!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fce4ec;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #gameWrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  #gameContainer {
+    position: relative;
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(233, 30, 99, 0.25);
+    overflow: hidden;
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+    border-radius: 20px;
+    background: #fff0f5;
+    touch-action: none;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 800 / 500;
+  }
+  #ui {
+    position: absolute;
+    top: 12px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 16px;
+    pointer-events: none;
+    font-weight: 600;
+    color: #d81b60;
+    font-size: 16px;
+    text-shadow: 0 1px 3px rgba(255,255,255,0.8);
+    z-index: 5;
+  }
+
+  .touch-controls {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    touch-action: none;
+    pointer-events: none;
+  }
+  .touch-controls > * {
+    pointer-events: auto;
+  }
+
+  #joystick-zone {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: 110px;
+    height: 110px;
+    touch-action: none;
+  }
+  #joystick-base {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(233, 30, 99, 0.15);
+    border: 2px solid rgba(233, 30, 99, 0.25);
+    touch-action: none;
+  }
+  #joystick-thumb {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(233, 30, 99, 0.45);
+    border: 2px solid rgba(233, 30, 99, 0.5);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    touch-action: none;
+    transition: none;
+  }
+  #joystick-thumb.active {
+    background: rgba(233, 30, 99, 0.65);
+  }
+
+  #jump-btn {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(233, 30, 99, 0.2);
+    border: 2px solid rgba(233, 30, 99, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: bold;
+    color: rgba(233, 30, 99, 0.6);
+    touch-action: none;
+    transition: background 0.1s;
+  }
+  #jump-btn.active {
+    background: rgba(233, 30, 99, 0.4);
+  }
+
+  #controls-hint {
+    text-align: center;
+    color: #ad1457;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.8;
+    padding: 0 10px;
+  }
+
+  @media (min-width: 820px) {
+    canvas { width: 800px; height: 500px; }
+    .touch-controls { display: none; }
+  }
+  @media (max-width: 819px) {
+    #gameContainer { width: 100vw; border-radius: 0; box-shadow: none; }
+    canvas { border-radius: 0; }
+    #controls-hint { display: none; }
+    #ui { font-size: 14px; top: 8px; }
+    #joystick-zone { width: 90px; height: 90px; bottom: 16px; left: 16px; }
+    #joystick-thumb { width: 38px; height: 38px; }
+    #jump-btn { width: 68px; height: 68px; bottom: 20px; right: 16px; font-size: 24px; }
+    #winOverlay h1 { font-size: 22px; }
+    #slideshow-container { width: 85%; }
+    #muteBtn { width: 36px; height: 36px; font-size: 18px; top: 8px; right: 8px; }
+  }
+
+  /* --- WIN OVERLAY --- */
+  #winOverlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    text-align: center;
+    pointer-events: none;
+  }
+  #winOverlay.show { display: flex; }
+  #winOverlay > * { pointer-events: auto; }
+
+  #winOverlay h1 {
+    font-size: 34px;
+    color: #e91e63;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 12px rgba(233,30,99,0.25);
+    line-height: 1.2;
+  }
+
+  #slideshow-container {
+    width: 65%;
+    max-width: 360px;
+    aspect-ratio: 4 / 3;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(233,30,99,0.2);
+    overflow: hidden;
+    position: relative;
+    border: 3px solid #f8bbd0;
+  }
+  #slideshow-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.5s ease;
+  }
+  #slide-nav {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.35));
+    color: #fff;
+  }
+  #slide-prev, #slide-next {
+    cursor: pointer;
+    font-size: 18px;
+    padding: 2px 10px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    user-select: none;
+    transition: background 0.2s;
+  }
+  #slide-prev:active, #slide-next:active { background: rgba(255,255,255,0.4); }
+  #slide-counter {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #no-slides-msg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #d81b60;
+    font-size: 14px;
+    padding: 20px;
+  }
+
+  #win-hearts {
+    color: #ad1457;
+    font-size: 17px;
+    margin-top: 10px;
+    font-weight: 500;
+  }
+  #win-love {
+    color: #d81b60;
+    font-size: 13px;
+    margin-top: 4px;
+    opacity: 0.8;
+  }
+
+  #muteBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 25;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.75);
+    border: 2px solid rgba(233,30,99,0.25);
+    font-size: 20px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  #muteBtn.show { display: flex; }
+  #muteBtn:active { background: rgba(255,255,255,0.95); }
+</style>
+</head>
+<body>
+
+<div>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+    <div id="ui">
+      <span>&#x1F497; <span id="heartCount">0</span></span>
+      <span id="winMessage" style="display:none;">&#x1F382; KOL 3AM W ENTI 7AYA BALF 5IRRRRR! &#x1F382;</span>
+    </div>
+    <div class="touch-controls" id="touchControls">
+      <div id="joystick-zone">
+        <div id="joystick-base">
+          <div id="joystick-thumb"></div>
+        </div>
+      </div>
+      <div id="jump-btn">&#x25B2;</div>
+    </div>
+
+    <div id="winOverlay">
+      <h1>&#x1F382; BRAVOOOO love uuuuu! &#x1F382;</h1>
+      <div id="slideshow-container">
+        <img id="slideImage" src="" alt="Photos" style="opacity:0" />
+        <div id="no-slides-msg">&#x1F4F7; Put photos in the <strong>slideshow/</strong> folder!</div>
+        <div id="slide-nav">
+          <span id="slide-prev">&#10094;</span>
+          <span id="slide-counter"></span>
+          <span id="slide-next">&#10095;</span>
+        </div>
+      </div>
+      <p id="win-hearts"></p>
+      <p id="win-love">Made with love &#x2764;&#xFE0F;</p>
+    </div>
+
+    <button id="muteBtn" title="Toggle music">&#x1F507;</button>
+
+    <audio id="bgm" src="bgm.mp3" loop autoplay muted></audio>
+  </div>
+  <div id="controls-hint">&#x2190; &#x2192; / A D &nbsp;&nbsp;|&nbsp;&nbsp; SPACE / W / &#x2191; to jump &nbsp;&nbsp;|&nbsp;&nbsp; Collect hearts &amp; reach the cake!</div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = 800, H = 500;
+
+const GRAVITY = 0.45;
+const FRICTION = 0.82;
+const JUMP_FORCE = -10;
+const MOVE_SPEED = 4.5;
+
+let heartsCollected = 0;
+let gameWon = false;
+let gameStarted = false;
+let frameCount = 0;
+
+const keys = {};
+
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (!gameStarted) gameStarted = true;
+  if (e.code === 'Space') e.preventDefault();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ---- TOUCH CONTROLS ----
+const touchState = { joystickId: null, jumpId: null, moveX: 0, jump: false };
+const joystickZone = document.getElementById('joystick-zone');
+const joystickThumb = document.getElementById('joystick-thumb');
+const jumpBtn = document.getElementById('jump-btn');
+
+function getTouchTarget(touch) {
+  const container = document.getElementById('gameContainer');
+  const cr = container.getBoundingClientRect();
+  const tx = touch.clientX - cr.left;
+  const ty = touch.clientY - cr.top;
+
+  const jr = joystickZone.getBoundingClientRect();
+  const jcx = jr.left + jr.width / 2;
+  const jcy = jr.top + jr.height / 2;
+  const jr2 = jr.width / 2;
+  if (Math.hypot(touch.clientX - jcx, touch.clientY - jcy) <= jr2 + 10) return 'joystick';
+
+  const br = jumpBtn.getBoundingClientRect();
+  const bcx = br.left + br.width / 2;
+  const bcy = br.top + br.height / 2;
+  if (Math.hypot(touch.clientX - bcx, touch.clientY - bcy) <= br.width / 2 + 10) return 'jump';
+
+  return 'canvas';
+}
+
+function handleTouchStart(e) {
+  if (!gameStarted) { gameStarted = true; }
+  e.preventDefault();
+  for (const touch of e.changedTouches) {
+    const target = getTouchTarget(touch);
+    if (target === 'jump') {
+      touchState.jumpId = touch.identifier;
+      touchState.jump = true;
+      jumpBtn.classList.add('active');
+    } else if (target === 'joystick' && touchState.joystickId === null) {
+      touchState.joystickId = touch.identifier;
+      updateJoystick(touch);
+    }
+  }
+}
+
+function handleTouchMove(e) {
+  e.preventDefault();
+  for (const touch of e.changedTouches) {
+    if (touch.identifier === touchState.joystickId) {
+      updateJoystick(touch);
+    }
+  }
+}
+
+function handleTouchEnd(e) {
+  e.preventDefault();
+  for (const touch of e.changedTouches) {
+    if (touch.identifier === touchState.joystickId) {
+      touchState.joystickId = null;
+      touchState.moveX = 0;
+      joystickThumb.style.transform = 'translate(-50%, -50%)';
+      joystickThumb.classList.remove('active');
+    }
+    if (touch.identifier === touchState.jumpId) {
+      touchState.jumpId = null;
+      touchState.jump = false;
+      jumpBtn.classList.remove('active');
+    }
+  }
+}
+
+function updateJoystick(touch) {
+  const rect = joystickZone.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const maxDist = rect.width / 2 - 22;
+
+  let dx = touch.clientX - cx;
+  let dy = touch.clientY - cy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist > maxDist) {
+    dx = (dx / dist) * maxDist;
+    dy = (dy / dist) * maxDist;
+  }
+
+  joystickThumb.style.transform = `translate(${-50 + (dx / rect.width) * 100}%, ${-50 + (dy / rect.height) * 100}%)`;
+  joystickThumb.classList.add('active');
+
+  const threshold = 8;
+  if (dist > threshold) {
+    touchState.moveX = dx / maxDist;
+    if (touchState.moveX > 0.2) touchState.moveX = Math.min(touchState.moveX, 1);
+    else if (touchState.moveX < -0.2) touchState.moveX = Math.max(touchState.moveX, -1);
+    else touchState.moveX = 0;
+  } else {
+    touchState.moveX = 0;
+  }
+}
+
+const touchEl = document.getElementById('touchControls');
+touchEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+touchEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+touchEl.addEventListener('touchend', handleTouchEnd, { passive: false });
+touchEl.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+canvas.addEventListener('click', () => { if (!gameStarted) gameStarted = true; });
+
+const player = {
+  x: 60, y: 380, w: 28, h: 32,
+  vx: 0, vy: 0,
+  onGround: false,
+  facing: 1,
+  frame: 0, frameTimer: 0,
+};
+
+const platforms = [
+  { x: 0, y: 470, w: 800, h: 30, color: '#f8bbd0' },
+  { x: 120, y: 380, w: 120, h: 16, color: '#f48fb1' },
+  { x: 320, y: 340, w: 110, h: 16, color: '#f06292' },
+  { x: 520, y: 300, w: 100, h: 16, color: '#ec407a' },
+  { x: 680, y: 260, w: 120, h: 16, color: '#e91e63' },
+  { x: 50, y: 240, w: 100, h: 16, color: '#f48fb1' },
+  { x: 250, y: 190, w: 110, h: 16, color: '#f06292' },
+  { x: 450, y: 220, w: 100, h: 16, color: '#ec407a' },
+  { x: 620, y: 160, w: 110, h: 16, color: '#f48fb1' },
+  { x: 100, y: 120, w: 100, h: 16, color: '#f06292' },
+  { x: 350, y: 100, w: 100, h: 16, color: '#ec407a' },
+  { x: 580, y: 80, w: 80, h: 16, color: '#e91e63' },
+];
+
+const hearts = [
+  { x: 170, y: 355, collected: false, bob: 0 },
+  { x: 370, y: 315, collected: false, bob: 1 },
+  { x: 570, y: 275, collected: false, bob: 2 },
+  { x: 100, y: 215, collected: false, bob: 0.5 },
+  { x: 300, y: 165, collected: false, bob: 1.5 },
+  { x: 500, y: 195, collected: false, bob: 2.5 },
+  { x: 670, y: 135, collected: false, bob: 0.8 },
+  { x: 150, y: 95, collected: false, bob: 1.8 },
+  { x: 400, y: 75, collected: false, bob: 2.8 },
+];
+
+const cake = { x: 620, y: 54, w: 50, h: 30 };
+
+const confetti = [];
+const heartParticles = [];
+
+function spawnConfetti(count) {
+  for (let i = 0; i < count; i++) {
+    confetti.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      w: 6 + Math.random() * 6,
+      h: 4 + Math.random() * 4,
+      color: ['#f48fb1','#f06292','#ec407a','#e91e63','#ce93d8','#ba68c8'][Math.floor(Math.random()*6)],
+      vx: (Math.random() - 0.5) * 3,
+      vy: -1 - Math.random() * 3,
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.1,
+    });
+  }
+}
+
+function spawnHeartParticles(x, y) {
+  for (let i = 0; i < 12; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 3;
+    heartParticles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1,
+      life: 1,
+      size: 4 + Math.random() * 6,
+    });
+  }
+}
+
+function rectCollision(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+// ---- DRAWING FUNCTIONS ----
+
+function drawCake(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  // cake base
+  ctx.fillStyle = '#f8bbd0';
+  ctx.beginPath();
+  ctx.roundRect(2, 10, 46, 20, 6);
+  ctx.fill();
+  // icing
+  ctx.fillStyle = '#fff9c4';
+  ctx.beginPath();
+  ctx.roundRect(4, 8, 42, 8, 4);
+  ctx.fill();
+  // top layer
+  ctx.fillStyle = '#f48fb1';
+  ctx.beginPath();
+  ctx.roundRect(8, 2, 34, 14, 5);
+  ctx.fill();
+  // candle
+  ctx.fillStyle = '#fff9c4';
+  ctx.fillRect(22, -6, 6, 12);
+  ctx.beginPath();
+  ctx.arc(25, -8, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffab00';
+  ctx.fill();
+  // flame glow
+  const flicker = Math.sin(Date.now() / 100) * 2;
+  ctx.beginPath();
+  ctx.arc(25, -8 + flicker, 8, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 171, 0, 0.15)';
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHeart(x, y, size, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = color || '#e91e63';
+  ctx.beginPath();
+  ctx.moveTo(0, size * 0.3);
+  ctx.bezierCurveTo(-size * 0.5, -size * 0.3, -size, size * 0.1, 0, size);
+  ctx.bezierCurveTo(size, size * 0.1, size * 0.5, -size * 0.3, 0, size * 0.3);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawCat(x, y, w, h, facing, frame) {
+  ctx.save();
+  ctx.translate(x + w / 2, y + h / 2);
+  const sc = facing;
+
+  // body
+  ctx.fillStyle = '#fff5f5';
+  ctx.beginPath();
+  ctx.ellipse(0, 4, w * 0.4, h * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // head
+  ctx.fillStyle = '#fff5f5';
+  ctx.beginPath();
+  ctx.arc(0, -8, w * 0.38, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // ears
+  ctx.fillStyle = '#fff5f5';
+  ctx.beginPath();
+  ctx.moveTo(-14, -14);
+  ctx.lineTo(-18, -26);
+  ctx.lineTo(-6, -18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(14, -14);
+  ctx.lineTo(18, -26);
+  ctx.lineTo(6, -18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // inner ears
+  ctx.fillStyle = '#fce4ec';
+  ctx.beginPath();
+  ctx.moveTo(-13, -16);
+  ctx.lineTo(-15, -24);
+  ctx.lineTo(-7, -18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(13, -16);
+  ctx.lineTo(15, -24);
+  ctx.lineTo(7, -18);
+  ctx.closePath();
+  ctx.fill();
+
+  // bow
+  ctx.fillStyle = '#e91e63';
+  ctx.beginPath();
+  ctx.moveTo(-8, -17);
+  ctx.lineTo(-4, -14);
+  ctx.lineTo(-8, -11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(8, -17);
+  ctx.lineTo(4, -14);
+  ctx.lineTo(8, -11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#f06292';
+  ctx.beginPath();
+  ctx.arc(0, -14, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // eyes
+  const blink = Math.sin(Date.now() / 3000) > 0.85 ? 0 : 4;
+  ctx.fillStyle = '#4a2c2c';
+  ctx.beginPath();
+  ctx.ellipse(-5, -9, 3, blink * 0.7 + 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5, -9, 3, blink * 0.7 + 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // eye shine
+  if (blink > 0) {
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(-4, -10, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(6, -10, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // nose
+  ctx.fillStyle = '#f48fb1';
+  ctx.beginPath();
+  ctx.moveTo(0, -5);
+  ctx.lineTo(-2, -3);
+  ctx.lineTo(2, -3);
+  ctx.closePath();
+  ctx.fill();
+
+  // mouth
+  ctx.strokeStyle = '#f48fb1';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(-2, -2, 2, Math.PI * 0.2, Math.PI * 0.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(2, -2, 2, Math.PI * 1.2, Math.PI * 1.8);
+  ctx.stroke();
+
+  // whiskers
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.lineWidth = 0.8;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-7 + i * 1, -6 + i * 2);
+    ctx.lineTo(-16 + i * 1, -8 + i * 3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(7 + i * 1, -6 + i * 2);
+    ctx.lineTo(16 + i * 1, -8 + i * 3);
+    ctx.stroke();
+  }
+
+  // tail
+  ctx.strokeStyle = '#fff5f5';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  const tailWag = Math.sin(Date.now() / 200 + frame * 0.5) * 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-sc * 14, 6);
+  ctx.quadraticCurveTo(-sc * 24, -4 + tailWag * 8, -sc * 18, -12 + tailWag * 8);
+  ctx.stroke();
+
+  // legs (simple)
+  ctx.fillStyle = '#fff5f5';
+  ctx.strokeStyle = '#f8bbd0';
+  ctx.lineWidth = 1;
+  const legOffset = Math.sin(Date.now() / 120) * 2 * (Math.abs(player.vx) > 0.5 ? 1 : 0.2);
+  for (let side of [-1, 1]) {
+    ctx.fillRect(side * 5 - 3, 8 + legOffset * side, 6, 5);
+    ctx.strokeRect(side * 5 - 3, 8 + legOffset * side, 6, 5);
+  }
+
+  ctx.restore();
+}
+
+function drawPlatform(p) {
+  ctx.save();
+  // shadow
+  ctx.fillStyle = 'rgba(233,30,99,0.08)';
+  ctx.beginPath();
+  ctx.roundRect(p.x + 3, p.y + 3, p.w, p.h, 8);
+  ctx.fill();
+  // main
+  ctx.fillStyle = p.color;
+  ctx.beginPath();
+  ctx.roundRect(p.x, p.y, p.w, p.h, 8);
+  ctx.fill();
+  // top highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath();
+  ctx.roundRect(p.x + 4, p.y + 2, p.w - 8, p.h * 0.35, 4);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTitle() {
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  const pulse = Math.sin(Date.now() / 500) * 0.04 + 1;
+  ctx.translate(W / 2, 150);
+
+  ctx.font = 'bold 48px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#f06292';
+  ctx.shadowColor = 'rgba(233,30,99,0.25)';
+  ctx.shadowBlur = 16;
+  ctx.fillText('\u2764', -70 * pulse, 0);
+  ctx.fillText('\u2764', 70 * pulse, 0);
+
+  ctx.shadowBlur = 0;
+  ctx.font = 'bold 36px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#e91e63';
+  ctx.fillText('A Little Adventure', 0, 50);
+  ctx.font = '24px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#ad1457';
+  ctx.fillText('for Eya', 0, 90);
+
+  ctx.font = '16px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#d81b60';
+  const blink = Math.sin(Date.now() / 400) > 0.3;
+  if (blink) ctx.fillText('Tap or press any key to start!', 0, 140);
+
+  ctx.restore();
+}
+
+function drawWinScreen() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(252, 228, 236, 0.85)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // big message
+  ctx.shadowColor = 'rgba(233,30,99,0.3)';
+  ctx.shadowBlur = 20;
+  ctx.font = 'bold 52px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#e91e63';
+  ctx.fillText('BRAVOOOO love uuuuu', W / 2, H / 2 - 30);
+
+  ctx.shadowBlur = 0;
+  ctx.font = '24px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#ad1457';
+  ctx.fillText(`\u2764 You collected ${heartsCollected} hearts! \u2764`, W / 2, H / 2 + 30);
+
+  ctx.font = '16px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#d81b60';
+  ctx.fillText('Made with love \u2764\ufe0f', W / 2, H / 2 + 80);
+
+  ctx.restore();
+}
+
+// ---- GAME LOOP ----
+
+function update() {
+  frameCount++;
+
+  if (!gameStarted) return;
+
+  if (gameWon) {
+    // still spawn confetti
+    if (frameCount % 8 === 0) spawnConfetti(3);
+    // update confetti
+    for (let i = confetti.length - 1; i >= 0; i--) {
+      const c = confetti[i];
+      c.x += c.vx;
+      c.y += c.vy;
+      c.vy += 0.04;
+      c.rot += c.rotSpeed;
+      if (c.y > H + 20) confetti.splice(i, 1);
+    }
+    updateParticles();
+    return;
+  }
+
+  // input
+  let moveX = 0;
+  if (keys['ArrowLeft'] || keys['KeyA']) moveX = -1;
+  if (keys['ArrowRight'] || keys['KeyD']) moveX = 1;
+  if (touchState.moveX !== 0) moveX = touchState.moveX;
+
+  if (moveX !== 0) player.facing = moveX > 0 ? 1 : -1;
+
+  // horizontal movement
+  player.vx = moveX * MOVE_SPEED;
+  player.x += player.vx;
+
+  // horizontal collision
+  for (const p of platforms) {
+    if (rectCollision(player, p)) {
+      if (player.vx > 0) player.x = p.x - player.w;
+      else if (player.vx < 0) player.x = p.x + p.w;
+    }
+  }
+
+  // gravity
+  player.vy += GRAVITY;
+  player.y += player.vy;
+  player.onGround = false;
+
+  // vertical collision
+  for (const p of platforms) {
+    if (rectCollision(player, p)) {
+      if (player.vy > 0) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (player.vy < 0) {
+        player.y = p.y + p.h;
+        player.vy = 0;
+      }
+    }
+  }
+
+  // jump
+  if ((keys['Space'] || keys['KeyW'] || keys['ArrowUp'] || touchState.jump) && player.onGround) {
+    player.vy = JUMP_FORCE;
+    player.onGround = false;
+  }
+
+  // fall off screen - reset
+  if (player.y > H + 50) {
+    player.x = 60; player.y = 380;
+    player.vx = 0; player.vy = 0;
+  }
+
+  // collect hearts
+  for (const h of hearts) {
+    if (h.collected) continue;
+    const dx = (player.x + player.w / 2) - h.x;
+    const dy = (player.y + player.h / 2) - h.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 28) {
+      h.collected = true;
+      heartsCollected++;
+      document.getElementById('heartCount').textContent = heartsCollected;
+      spawnHeartParticles(h.x, h.y);
+    }
+  }
+
+  // win check - reach the cake
+  if (rectCollision(player, cake)) {
+    gameWon = true;
+    document.getElementById('winMessage').style.display = 'block';
+    spawnConfetti(80);
+    showWinOverlay();
+  }
+
+  // update particles
+  updateParticles();
+}
+
+function updateParticles() {
+  for (let i = heartParticles.length - 1; i >= 0; i--) {
+    const p = heartParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.08;
+    p.life -= 0.02;
+    if (p.life <= 0) heartParticles.splice(i, 1);
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // background decorations
+  drawBackground();
+
+  if (!gameStarted) {
+    drawTitle();
+    return;
+  }
+
+  // platforms
+  for (const p of platforms) drawPlatform(p);
+
+  // cake
+  drawCake(cake.x, cake.y);
+
+  // hearts to collect
+  for (const h of hearts) {
+    if (h.collected) continue;
+    const bob = Math.sin(Date.now() / 400 + h.bob * 3) * 3;
+    const glow = Math.sin(Date.now() / 600 + h.bob) * 0.15 + 0.2;
+    ctx.save();
+    // glow
+    ctx.beginPath();
+    ctx.arc(h.x, h.y + bob, 16, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(233, 30, 99, ${glow})`;
+    ctx.fill();
+    ctx.restore();
+    drawHeart(h.x, h.y + bob, 12, '#e91e63');
+  }
+
+  // particles
+  for (const p of heartParticles) {
+    ctx.globalAlpha = p.life;
+    drawHeart(p.x, p.y, p.size, '#f06292');
+    ctx.globalAlpha = 1;
+  }
+
+  // player
+  const legMove = Math.abs(player.vx) > 0.5 ? Math.floor(Date.now() / 100) % 2 : 0;
+  drawCat(player.x, player.y, player.w, player.h, player.facing, legMove);
+
+  // confetti
+  for (const c of confetti) {
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    ctx.fillStyle = c.color;
+    ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+    ctx.restore();
+  }
+
+  // Win screen drawn as HTML overlay — keep canvas free for confetti
+}
+
+function drawBackground() {
+  // subtle gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#fce4ec');
+  grad.addColorStop(1, '#fff0f5');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // little background hearts
+  ctx.globalAlpha = 0.08;
+  const seed = 12345;
+  for (let i = 0; i < 15; i++) {
+    const bx = ((i * 137 + 50) % W);
+    const by = ((i * 97 + 30) % H);
+    const bsize = 10 + (i % 15);
+    drawHeart(bx, by, bsize, '#e91e63');
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ===== SLIDESHOW =====
+const SLIDE_IMAGES = [
+  'slideshow/photo1.jpg',
+  'slideshow/photo2.jpg',
+  'slideshow/photo3.jpg',
+  'slideshow/photo4.jpg',
+  'slideshow/photo5.jpg',
+  'slideshow/photo6.jpg',
+];
+
+let slideIndex = 0;
+let slideTimer = null;
+const preloadedImages = [];
+
+function preloadSlideImages() {
+  for (const src of SLIDE_IMAGES) {
+    const img = new Image();
+    img.src = src;
+    preloadedImages.push(img);
+  }
+}
+
+function showSlide(index) {
+  const img = document.getElementById('slideImage');
+  const counter = document.getElementById('slide-counter');
+  const noMsg = document.getElementById('no-slides-msg');
+  const nav = document.getElementById('slide-nav');
+
+  let hasValid = false;
+  for (let i = 0; i < preloadedImages.length; i++) {
+    if (preloadedImages[i].complete && preloadedImages[i].naturalWidth > 0) {
+      hasValid = true;
+      break;
+    }
+  }
+
+  if (!hasValid) {
+    img.style.opacity = '0';
+    noMsg.style.display = 'flex';
+    nav.style.display = 'none';
+    return;
+  }
+
+  noMsg.style.display = 'none';
+  nav.style.display = 'flex';
+  img.style.opacity = '0';
+  setTimeout(() => {
+    if (preloadedImages[index] && preloadedImages[index].complete && preloadedImages[index].naturalWidth > 0) {
+      img.src = preloadedImages[index].src;
+      counter.textContent = `${index + 1} / ${SLIDE_IMAGES.length}`;
+      img.style.opacity = '1';
+    } else {
+      slideIndex = (index + 1) % SLIDE_IMAGES.length;
+      showSlide(slideIndex);
+    }
+  }, 200);
+}
+
+function nextSlide() {
+  slideIndex = (slideIndex + 1) % SLIDE_IMAGES.length;
+  showSlide(slideIndex);
+  resetSlideTimer();
+}
+function prevSlide() {
+  slideIndex = (slideIndex - 1 + SLIDE_IMAGES.length) % SLIDE_IMAGES.length;
+  showSlide(slideIndex);
+  resetSlideTimer();
+}
+function resetSlideTimer() {
+  if (slideTimer) clearInterval(slideTimer);
+  slideTimer = setInterval(nextSlide, 3000);
+}
+
+function showWinOverlay() {
+  const overlay = document.getElementById('winOverlay');
+  const heartsEl = document.getElementById('win-hearts');
+  overlay.classList.add('show');
+  heartsEl.textContent = `\u2764 You collected ${heartsCollected} hearts! \u2764`;
+
+  slideIndex = 0;
+  for (let i = 0; i < preloadedImages.length; i++) {
+    if (preloadedImages[i].complete && preloadedImages[i].naturalWidth > 0) {
+      slideIndex = i; break;
+    }
+  }
+  showSlide(slideIndex);
+  resetSlideTimer();
+}
+
+function toggleMute() {
+  const audio = document.getElementById('bgm');
+  if (!audio) return;
+  audio.muted = !audio.muted;
+  audio.play();
+  document.getElementById('muteBtn').textContent = audio.muted ? '\uD83D\uDD07' : '\uD83D\uDD0A';
+}
+
+// Init
+preloadSlideImages();
+document.getElementById('muteBtn').classList.add('show');
+
+// Kick audio on first interaction
+function kickAudio() {
+  const audio = document.getElementById('bgm');
+  if (audio) audio.play().catch(() => {});
+}
+document.addEventListener('keydown', kickAudio, { once: true });
+document.addEventListener('touchstart', kickAudio, { once: true });
+canvas.addEventListener('click', kickAudio, { once: true });
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('slide-prev').addEventListener('click', prevSlide);
+  document.getElementById('slide-next').addEventListener('click', nextSlide);
+  document.getElementById('muteBtn').addEventListener('click', toggleMute);
+  document.getElementById('muteBtn').classList.add('show');
+});
+
+// roundRect polyfill for canvas
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (r > w / 2) r = w / 2;
+    if (r > h / 2) r = h / 2;
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y, x + w, y + h, r);
+    this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r);
+    this.arcTo(x, y, x + w, y, r);
+    return this;
+  };
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>

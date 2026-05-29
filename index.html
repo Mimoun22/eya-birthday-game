@@ -143,8 +143,26 @@
     .touch-controls { display: none; }
   }
   @media (max-width: 819px) {
-    #gameContainer { width: 100vw; border-radius: 0; box-shadow: none; }
-    canvas { border-radius: 0; }
+    body { margin: 0; overflow: hidden; background: #fce4ec; }
+    #gameWrapper { gap: 0; }
+    #gameContainer {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      border-radius: 0;
+      box-shadow: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      border-radius: 0;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 100%;
+      aspect-ratio: 800 / 500;
+    }
     #controls-hint { display: none; }
     #ui { font-size: 14px; top: 8px; }
     #joystick-zone { width: 90px; height: 90px; bottom: 16px; left: 16px; }
@@ -153,6 +171,42 @@
     #winOverlay h1 { font-size: 22px; }
     #slideshow-container { width: 85%; }
     #muteBtn { width: 36px; height: 36px; font-size: 18px; top: 8px; right: 8px; }
+  }
+
+  @media (max-width: 819px) and (orientation: portrait) {
+    #rotate-hint { display: flex; }
+  }
+  #rotate-hint {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: #fce4ec;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', sans-serif;
+    color: #e91e63;
+    text-align: center;
+    padding: 40px;
+  }
+  #rotate-hint span {
+    font-size: 64px;
+    margin-bottom: 20px;
+    animation: rotate-phone 2s ease-in-out infinite;
+  }
+  @keyframes rotate-phone {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
+  #rotate-hint p {
+    font-size: 20px;
+    font-weight: 600;
+  }
+  #rotate-hint small {
+    font-size: 14px;
+    opacity: 0.7;
+    margin-top: 8px;
   }
 
   /* --- WIN OVERLAY --- */
@@ -290,6 +344,12 @@
 </style>
 </head>
 <body>
+
+<div id="rotate-hint">
+  <span>&#x1F4F1;</span>
+  <p>Please rotate your device</p>
+  <small>to landscape for the best experience &#x1F3B6;</small>
+</div>
 
 <div>
   <div id="gameContainer">
@@ -1094,14 +1154,34 @@ function toggleMute() {
 preloadSlideImages();
 document.getElementById('muteBtn').classList.add('show');
 
-// Kick audio on first interaction
+// Kick audio + lock orientation on first interaction
 function kickAudio() {
   const audio = document.getElementById('bgm');
   if (audio) audio.play().catch(() => {});
+  try { screen.orientation.lock('landscape').catch(() => {}); } catch(e) {}
 }
 document.addEventListener('keydown', kickAudio, { once: true });
 document.addEventListener('touchstart', kickAudio, { once: true });
 canvas.addEventListener('click', kickAudio, { once: true });
+
+// Fit canvas to viewport on mobile resize/orientation change
+function fitCanvas() {
+  const c = document.getElementById('gameContainer');
+  const cv = document.getElementById('gameCanvas');
+  if (!c || !cv) return;
+  const cw = c.clientWidth;
+  const ch = c.clientHeight;
+  if (cw === 0 || ch === 0) return;
+  const ratio = 800 / 500;
+  let w, h;
+  if (cw / ch > ratio) { h = ch; w = ch * ratio; }
+  else { w = cw; h = cw / ratio; }
+  cv.style.width = Math.floor(w) + 'px';
+  cv.style.height = Math.floor(h) + 'px';
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 300));
+fitCanvas();
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('slide-prev').addEventListener('click', prevSlide);

@@ -3,8 +3,8 @@
   "short_name": "Eya's Game",
   "description": "A cute platformer game for Eya's birthday",
   "start_url": "./",
-  "display": "fullscreen",
-  "orientation": "landscape",
+  "display": "standalone",
+  "orientation": "landscape-primary",
   "background_color": "#fce4ec",
   "theme_color": "#e91e63",
   "icons": [

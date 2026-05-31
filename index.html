@@ -35,21 +35,124 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: 15px;
     text-align: center;
-    background: rgba(252, 228, 236, 0.92);
+    background: rgba(252, 228, 236, 0.93);
   }
   #finalOverlay.show { display: flex; }
-  #finalOverlay h1 {
-    font-size: 30px;
-    color: #e91e63;
-    margin-bottom: 10px;
-    text-shadow: 0 2px 12px rgba(233,30,99,0.25);
-    line-height: 1.2;
+
+  .coupon-card {
+    background: #fff;
+    border: 3px dashed #e91e63;
+    border-radius: 24px;
+    padding: 24px 20px 16px;
+    max-width: 340px;
+    width: 100%;
+    position: relative;
+    box-shadow: 0 6px 24px rgba(233,30,99,0.12);
   }
+  .coupon-card::before, .coupon-card::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 14px; height: 14px;
+    background: rgba(252, 228, 236, 0.93);
+    border-radius: 50%;
+    transform: translateY(-50%);
+  }
+  .coupon-card::before { left: -8px; }
+  .coupon-card::after { right: -8px; }
+
+  .coupon-ribbon {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #e91e63, #f06292);
+    color: #fff;
+    padding: 4px 20px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    box-shadow: 0 3px 10px rgba(233,30,99,0.3);
+  }
+  .coupon-cats { font-size: 32px; margin: 8px 0 4px; letter-spacing: 4px; }
+  .coupon-title {
+    font-size: 24px;
+    color: #e91e63;
+    margin: 8px 0 4px;
+    font-weight: 800;
+  }
+  .coupon-divider {
+    width: 60%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #f8bbd0, transparent);
+    margin: 8px auto;
+    border: none;
+  }
+  .coupon-text {
+    color: #555;
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 6px 0;
+  }
+  .coupon-terms {
+    color: #999;
+    font-size: 11px;
+    margin: 6px 0;
+    line-height: 1.6;
+  }
+  .coupon-footer {
+    border-top: 1px dashed #f8bbd0;
+    padding-top: 8px;
+    margin-top: 6px;
+    color: #ad1457;
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  .overlay-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    justify-content: center;
+  }
+  .overlay-btn {
+    padding: 7px 18px;
+    border-radius: 20px;
+    border: 2px solid #e91e63;
+    background: transparent;
+    color: #e91e63;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .overlay-btn:active { background: rgba(233,30,99,0.1); }
+  .overlay-btn.primary {
+    background: #e91e63;
+    color: #fff;
+    border: none;
+    box-shadow: 0 3px 12px rgba(233,30,99,0.3);
+  }
+  .overlay-btn.primary:active { background: #c2185b; }
+
+  #couponContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  #photosContainer {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
   #slideshow-container {
-    width: 70%;
-    max-width: 360px;
+    width: 72%;
+    max-width: 340px;
     aspect-ratio: 4 / 3;
     background: #fff;
     border-radius: 16px;
@@ -95,25 +198,6 @@
     font-size: 14px;
     padding: 20px;
   }
-  #final-love {
-    color: #d81b60;
-    font-size: 14px;
-    margin-top: 10px;
-    opacity: 0.8;
-  }
-  #play-again-btn {
-    margin-top: 10px;
-    padding: 8px 24px;
-    border-radius: 30px;
-    background: #e91e63;
-    color: #fff;
-    border: none;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 4px 16px rgba(233,30,99,0.3);
-  }
-  #play-again-btn:active { background: #c2185b; }
 </style>
 </head>
 <body>
@@ -122,19 +206,47 @@
   <canvas id="gameCanvas" width="800" height="500"></canvas>
 
   <div id="finalOverlay">
-    <h1>&#x1F382; You completed all levels! &#x1F382;</h1>
-    <h1>BRAVOOOO love uuuuu!</h1>
-    <div id="slideshow-container">
-      <img id="slideImage" src="" alt="Photos" />
-      <div id="no-slides-msg">&#x1F4F7; Put photos in the <strong>slideshow/</strong> folder!</div>
-      <div id="slide-nav">
-        <span id="slide-prev">&#10094;</span>
-        <span id="slide-counter"></span>
-        <span id="slide-next">&#10095;</span>
+    <div id="couponContainer">
+      <div class="coupon-card">
+        <div class="coupon-ribbon">♡ COUPON ♡</div>
+        <div class="coupon-cats">🐱  😻  🐱</div>
+        <div class="coupon-title">∞ Infinite Kisses ∞</div>
+        <div class="coupon-divider"></div>
+        <div class="coupon-text">
+          This cute coupon entitles <strong>Eya</strong><br>
+          to unlimited kisses from <strong>Mimoun</strong>,<br>
+          redeemable anytime anywhere!
+        </div>
+        <div style="color:#e91e63;font-size:20px;margin:4px 0;">♡</div>
+        <div class="coupon-terms">
+          Redeemable: <strong>FOREVER</strong><br>
+          Expires: <strong>NEVER ♥</strong>
+        </div>
+        <div class="coupon-divider"></div>
+        <div class="coupon-footer">for you my love</div>
+      </div>
+      <div class="overlay-actions">
+        <button class="overlay-btn" id="viewPhotosBtn">📸 Memories</button>
+        <button class="overlay-btn primary" id="playAgainBtn">Play Again</button>
       </div>
     </div>
-    <p id="final-love">Made with love &#x2764;&#xFE0F;</p>
-    <button id="play-again-btn">Play Again</button>
+
+    <div id="photosContainer">
+      <h2 style="font-size:24px;color:#e91e63;margin-bottom:8px;">Our Memories ♡</h2>
+      <div id="slideshow-container">
+        <img id="slideImage" src="" alt="">
+        <div id="no-slides-msg">📸 Put photos in the <strong>slideshow/</strong> folder!</div>
+        <div id="slide-nav">
+          <span id="slide-prev">❮</span>
+          <span id="slide-counter"></span>
+          <span id="slide-next">❯</span>
+        </div>
+      </div>
+      <div class="overlay-actions">
+        <button class="overlay-btn" id="backToCouponBtn">← Coupon</button>
+        <button class="overlay-btn primary" id="playAgainBtn2">Play Again</button>
+      </div>
+    </div>
   </div>
 
   <audio id="bgm" src="bgm.mp3" loop></audio>
@@ -351,6 +463,8 @@ function resetSlideTimer() {
 
 function showFinalOverlay() {
   document.getElementById('finalOverlay').classList.add('show');
+  document.getElementById('couponContainer').style.display = 'flex';
+  document.getElementById('photosContainer').style.display = 'none';
   slideIndex = 0;
   for (let i = 0; i < preloadedImages.length; i++) {
     if (preloadedImages[i].complete && preloadedImages[i].naturalWidth > 0) { slideIndex = i; break; }
@@ -676,6 +790,10 @@ function drawMenu() {
   ctx.font = '18px "Segoe UI", sans-serif';
   ctx.fillStyle = '#ad1457';
   ctx.fillText('A Birthday Game for Eya', W / 2, 165);
+
+  // Decorative cats
+  drawCat(155, 88, 36, 36, 1, false);
+  drawCat(609, 88, 36, 36, -1, false);
 
   // Play button
   const bx = W / 2 - 80, by = 240, bw = 160, bh = 50;
@@ -1203,11 +1321,26 @@ document.addEventListener('keydown', e => {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('slide-prev').addEventListener('click', prevSlide);
   document.getElementById('slide-next').addEventListener('click', nextSlide);
-  document.getElementById('play-again-btn').addEventListener('click', () => {
+
+  function playAgain() {
     document.getElementById('finalOverlay').classList.remove('show');
     if (slideTimer) clearInterval(slideTimer);
     currentLevel = 0;
     goToMenu();
+  }
+
+  document.getElementById('playAgainBtn').addEventListener('click', playAgain);
+  document.getElementById('playAgainBtn2').addEventListener('click', playAgain);
+
+  document.getElementById('viewPhotosBtn').addEventListener('click', () => {
+    document.getElementById('couponContainer').style.display = 'none';
+    document.getElementById('photosContainer').style.display = 'flex';
+    resetSlideTimer();
+  });
+  document.getElementById('backToCouponBtn').addEventListener('click', () => {
+    document.getElementById('photosContainer').style.display = 'none';
+    document.getElementById('couponContainer').style.display = 'flex';
+    if (slideTimer) clearInterval(slideTimer);
   });
 });
 

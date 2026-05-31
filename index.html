@@ -29,7 +29,7 @@
   canvas {
     display: block;
     background: #fff0f5;
-    cursor: pointer;
+    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><text y='20' font-size='20'>&#x2764;</text></svg>") 13 13, auto;
   }
   #finalOverlay {
     display: none;
@@ -284,10 +284,18 @@ let musicVolume = 0.5;
 let audioCtx = null;
 
 // Particles & effects
-let pawPrints = [];
+let heartTrail = [];
 let textBubbles = [];
 let sparkles = [];
 let sliderDragging = null;
+
+// Screen shake
+let screenShakeIntensity = 0;
+
+// Secret hearts
+let secretHeart = null;
+let secretCollected = false;
+let totalSecretsFound = 0;
 
 // LocalStorage progress
 let unlockedLevel = 0;
@@ -312,6 +320,7 @@ const levels = [
     broken: [],
     cake: { x: 640, y: 330, w: 50, h: 30 },
     hint: 'Arrow keys / WASD to move, SPACE to jump',
+    secret: { x: 720, y: 465 }, // hidden near bottom-right corner
   },
   {
     name: 'Heart Explorer',
@@ -338,6 +347,7 @@ const levels = [
       { x: 220, y: 345 }, { x: 580, y: 225 },
     ],
     cake: { x: 610, y: 220, w: 50, h: 30 },
+    secret: { x: 30, y: 455 }, // hidden near bottom-left, tricky jump required
   },
   {
     name: 'Careful Climb',
@@ -370,6 +380,7 @@ const levels = [
       { x: 520, y: 285 }, { x: 640, y: 115 },
     ],
     cake: { x: 630, y: 110, w: 50, h: 30 },
+    secret: { x: 120, y: 275 }, // hidden between platforms, tight spot
   },
   {
     name: 'For You My Love',
@@ -408,6 +419,7 @@ const levels = [
       { x: 440, y: 275 }, { x: 690, y: 100 },
     ],
     cake: { x: 460, y: 40, w: 50, h: 30 },
+    secret: { x: 760, y: 465 }, // hidden far bottom-right, tricky to reach
   },
 ];
 
@@ -568,6 +580,20 @@ function playSFX(type) {
     gain.gain.linearRampToValueAtTime(0, now + 0.25);
     osc.start(now);
     osc.stop(now + 0.25);
+  } else if (type === 'secret') {
+    [880, 1109, 1319].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      const t = now + i * 0.06;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(vol * 0.12, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.12);
+      osc.start(t);
+      osc.stop(t + 0.12);
+    });
   }
 }
 
@@ -599,7 +625,6 @@ function toggleMusic() {
   }
 }
 
-// Start music on load
 (function initAudio() {
   const audio = document.getElementById('bgm');
   if (audio) {
@@ -617,7 +642,6 @@ function toggleMusic() {
   }
 })();
 
-// Save / load progress
 function saveProgress() {
   try {
     const val = Math.max(unlockedLevel, parseInt(localStorage.getItem('eya_unlocked') || '0', 10));
@@ -629,7 +653,9 @@ function loadProgress() {
   try {
     const val = parseInt(localStorage.getItem('eya_unlocked') || '0', 10);
     unlockedLevel = Math.max(0, Math.min(val, levels.length - 1));
-  } catch (e) { unlockedLevel = 0; }
+    const sec = parseInt(localStorage.getItem('eya_secrets') || '0', 10);
+    totalSecretsFound = Math.max(0, Math.min(sec, levels.length));
+  } catch (e) { unlockedLevel = 0; totalSecretsFound = 0; }
 }
 
 function advanceProgress(completedLevel) {
@@ -640,9 +666,8 @@ function advanceProgress(completedLevel) {
   }
 }
 
-// Level management
-function loadLevel(index) {
-  const lv = levels[index];
+function levelManagement() {
+  const lv = levels[currentLevel];
   player = {
     x: lv.playerStart.x, y: lv.playerStart.y,
     w: 28, h: 32,
@@ -658,13 +683,25 @@ function loadLevel(index) {
   levelCompleted = false;
   confetti = [];
   heartParticles = [];
-  pawPrints = [];
+  heartTrail = [];
+  if (lv.secret) {
+    secretHeart = { x: lv.secret.x, y: lv.secret.y, collected: false };
+  } else {
+    secretHeart = null;
+  }
+  secretCollected = false;
   gameState = STATE.PLAYING;
 }
 
+function loadLevel(index) {
+  currentLevel = index;
+  levelManagement();
+}
+
 function restartLevel() {
-  loadLevel(currentLevel);
   playSFX('broken');
+  screenShakeIntensity = 8;
+  loadLevel(currentLevel);
 }
 
 function goToMenu() {
@@ -683,6 +720,10 @@ function completeLevel() {
   spawnConfetti(50);
   playSFX('complete');
   advanceProgress(currentLevel);
+  if (secretCollected) {
+    totalSecretsFound++;
+    try { localStorage.setItem('eya_secrets', String(totalSecretsFound)); } catch (e) { /* ignore */ }
+  }
 }
 
 // Drawing helpers
@@ -760,24 +801,6 @@ function drawCake(x, y) {
   ctx.beginPath();
   ctx.arc(25, -8 + flicker, 8, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(255, 171, 0, 0.15)';
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawPawPrint(x, y, size, alpha) {
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = 'rgba(233,30,99,0.12)';
-  ctx.beginPath();
-  ctx.ellipse(x, y, size * 0.5, size * 0.4, 0, 0, Math.PI * 2);
-  ctx.fill();
-  for (let i = -1; i <= 1; i++) {
-    ctx.beginPath();
-    ctx.arc(x + i * size * 0.28, y - size * 0.42, size * 0.14, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.beginPath();
-  ctx.arc(x, y - size * 0.54, size * 0.14, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -922,15 +945,15 @@ function spawnHeartParticles(x, y) {
   }
 }
 
-function spawnMeow(x, y) {
+function spawnMeow(x, y, text) {
   textBubbles.push({
     x: x + (Math.random() - 0.5) * 10,
     y: y - 10,
     vy: -1.2,
     life: 1,
-    text: 'Meow!',
+    text: text || 'Meow!',
   });
-  playSFX('meow');
+  playSFX(text === 'Secret!' ? 'secret' : 'meow');
 }
 
 function drawSlider(sl) {
@@ -1006,7 +1029,6 @@ function drawMenu() {
 
   const pulse = Math.sin(Date.now() / 600) * 0.03 + 1;
 
-  // Floating hearts
   for (let i = 0; i < 8; i++) {
     const hx = ((i * 107 + 33) % W);
     const hy = ((i * 73 + 50) % H);
@@ -1017,13 +1039,11 @@ function drawMenu() {
   }
   ctx.globalAlpha = 1;
 
-  // Decorative large hearts
   ctx.shadowColor = 'rgba(233,30,99,0.2)';
   ctx.shadowBlur = 20;
   drawHeart(W / 2 - 120, 125, 20 * pulse, '#f06292');
   drawHeart(W / 2 + 120, 125, 20 * pulse, '#f06292');
 
-  // Title
   ctx.shadowBlur = 16;
   ctx.font = 'bold 44px "Segoe UI", sans-serif';
   ctx.fillStyle = '#e91e63';
@@ -1034,11 +1054,9 @@ function drawMenu() {
   ctx.fillStyle = '#ad1457';
   ctx.fillText('A Birthday Game for Eya', W / 2, 165);
 
-  // Decorative cats
   drawCat(155, 88, 36, 36, 1, false);
   drawCat(609, 88, 36, 36, -1, false);
 
-  // Play button
   const bx = W / 2 - 80, by = 230, bw = 160, bh = 46;
   const hover = mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh;
   ctx.shadowColor = 'rgba(233,30,99,0.3)';
@@ -1054,23 +1072,20 @@ function drawMenu() {
   ctx.buttons = ctx.buttons || [];
   ctx.buttons.push({ x: bx, y: by, w: bw, h: bh, action: 'play' });
 
-  // Volume sliders
   const s1 = { x: W / 2 - 100, y: 297, w: 200, h: 28, value: musicVolume, label: '\uD83C\uDFB5 Music', key: 'musicVolume' };
   const s2 = { x: W / 2 - 100, y: 330, w: 200, h: 28, value: sfxVolume, label: '\uD83C\uDFB6 SFX', key: 'sfxVolume' };
   drawSlider(s1);
   drawSlider(s2);
   ctx.buttons.push({ x: W / 2 - 20, y: 297, w: 140, h: 28, action: 'slider', slider: s1 });
   ctx.buttons.push({ x: W / 2 - 20, y: 330, w: 140, h: 28, action: 'slider', slider: s2 });
-  // Hit areas for track + handle
   for (const sl of [s1, s2]) {
     const tx = sl.x + 80;
     ctx.buttons.push({ x: tx, y: 282, w: 120, h: 42, action: 'slider', slider: sl });
   }
 
-  // Controls hint
   ctx.font = '12px "Segoe UI", sans-serif';
   ctx.fillStyle = '#d81b60';
-  ctx.fillText('\u2190 \u2192 / A D  |  SPACE / W / \u2191 to jump  |  M = music', W / 2, 400);
+  ctx.fillText('\u2190 \u2192 / A D  |  SPACE / W / \u2191 to jump  |  R = restart  |  M = music', W / 2, 400);
 
   ctx.restore();
 }
@@ -1100,7 +1115,6 @@ function drawLevelSelect() {
     const locked = i > unlockedLevel;
     const hover = !locked && mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh;
 
-    // Card background
     ctx.fillStyle = locked ? '#f5f5f5' : (hover ? '#fff5f7' : '#fff');
     ctx.shadowColor = 'rgba(233,30,99,0.12)';
     ctx.shadowBlur = hover ? 16 : 8;
@@ -1110,20 +1124,17 @@ function drawLevelSelect() {
     ctx.shadowBlur = 0;
 
     if (locked) {
-      // Lock overlay
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.beginPath();
       ctx.roundRect(bx, by, bw, bh, 12);
       ctx.fill();
     }
 
-    // Accent bar
     ctx.fillStyle = locked ? '#ccc' : ['#f48fb1','#f06292','#ec407a','#e91e63'][i];
     ctx.beginPath();
     ctx.roundRect(bx, by, 6, bh, 3);
     ctx.fill();
 
-    // Level icon
     ctx.font = '24px "Segoe UI", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -1134,7 +1145,6 @@ function drawLevelSelect() {
     ctx.fillStyle = locked ? '#ccc' : '#555';
     ctx.fillText(locked ? 'Complete previous level to unlock' : lv.name, bx + 22, by + 50);
 
-    // Difficulty hearts
     ctx.textAlign = 'right';
     for (let d = 0; d < 4; d++) {
       const hx = bx + bw - 18 - d * 22;
@@ -1149,7 +1159,7 @@ function drawLevelSelect() {
     ctx.textAlign = 'right';
     ctx.font = '12px "Segoe UI", sans-serif';
     ctx.fillStyle = locked ? '#ddd' : '#999';
-    ctx.fillText(locked ? '\uD83D\uDD12' : lv.subtitle, bx + bw - 18, by + 50);
+    ctx.fillText(locked ? '\uD83D\uDD12' : (lv.secret && totalSecretsFound > i ? '\u2B50 Secret found!' : lv.subtitle), bx + bw - 18, by + 50);
 
     ctx.textAlign = 'center';
     if (!locked) {
@@ -1157,7 +1167,6 @@ function drawLevelSelect() {
     }
   }
 
-  // Back button
   const bbx = W / 2 - 50, bby = startY + 4 * gap + 10, bbw = 100, bbh = 36;
   const bHover = mouseX >= bbx && mouseX <= bbx + bbw && mouseY >= bby && mouseY <= bby + bbh;
   ctx.fillStyle = bHover ? 'rgba(233,30,99,0.15)' : 'rgba(233,30,99,0.08)';
@@ -1195,7 +1204,6 @@ function drawGame() {
   for (const p of platforms) drawPlatform(p);
   drawCake(cake.x, cake.y);
 
-  // Hearts
   for (const h of hearts) {
     if (h.collected) continue;
     const bob = Math.sin(Date.now() / 400 + h.bob * 3) * 3;
@@ -1209,23 +1217,48 @@ function drawGame() {
     drawHeart(h.x, h.y + bob, 12, '#e91e63');
   }
 
-  // Broken hearts
   for (const b of brokenHearts) {
     if (!b.active) continue;
     const bob = Math.sin(Date.now() / 300 + b.x * 0.01) * 3;
     drawBrokenHeart(b.x, b.y + bob, 14);
   }
 
-  // Particles
   for (const p of heartParticles) {
     ctx.globalAlpha = p.life;
     drawHeart(p.x, p.y, p.size, '#f06292');
     ctx.globalAlpha = 1;
   }
 
-  // Paw prints
-  for (const pp of pawPrints) {
-    drawPawPrint(pp.x, pp.y, pp.size, pp.alpha);
+  // Secret heart
+  if (secretHeart && !secretHeart.collected) {
+    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.7;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+    ctx.shadowBlur = 20;
+    ctx.globalAlpha = pulse;
+    drawHeart(secretHeart.x, secretHeart.y, 10, '#ffab00');
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    // Sparkle particles around it
+    for (let i = 0; i < 4; i++) {
+      const angle = Date.now() / 500 + i * Math.PI / 2;
+      const dx = Math.cos(angle) * 12;
+      const dy = Math.sin(angle) * 12;
+      const sz = 2 + Math.sin(angle * 2) * 1;
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.4)';
+      ctx.beginPath();
+      ctx.arc(secretHeart.x + dx, secretHeart.y + dy, sz, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Heart trail
+  for (const ht of heartTrail) {
+    ctx.save();
+    ctx.globalAlpha = ht.alpha;
+    drawHeart(ht.x, ht.y, ht.size, '#f06292');
+    ctx.restore();
   }
 
   // Text bubbles
@@ -1242,11 +1275,9 @@ function drawGame() {
     ctx.restore();
   }
 
-  // Player
   const moving = Math.abs(player.vx) > 0.5;
   drawCat(player.x, player.y, player.w, player.h, player.facing, moving);
 
-  // Confetti
   for (const c of confetti) {
     ctx.save();
     ctx.translate(c.x, c.y);
@@ -1256,7 +1287,6 @@ function drawGame() {
     ctx.restore();
   }
 
-  // HUD
   ctx.save();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
@@ -1265,6 +1295,10 @@ function drawGame() {
   ctx.shadowColor = 'rgba(255,255,255,0.8)';
   ctx.shadowBlur = 4;
   ctx.fillText('\uD83D\uDC97 ' + heartsCollected, 12, 10);
+  // Secret heart indicator
+  if (secretHeart && !secretHeart.collected) {
+    ctx.fillText('\u2B50 ?', 100, 10);
+  }
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ad1457';
   ctx.font = '14px "Segoe UI", sans-serif';
@@ -1282,13 +1316,12 @@ function drawGame() {
 
   ctx.restore();
 
-  // ESC hint
   ctx.save();
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
   ctx.font = '11px "Segoe UI", sans-serif';
   ctx.fillStyle = 'rgba(173,20,87,0.4)';
-  ctx.fillText('ESC = menu', W - 8, H - 6);
+  ctx.fillText('ESC = menu  |  R = restart', W - 8, H - 6);
   ctx.restore();
 }
 
@@ -1307,6 +1340,11 @@ function drawLevelComplete() {
   ctx.font = '18px "Segoe UI", sans-serif';
   ctx.fillStyle = '#ad1457';
   ctx.fillText('\u2764 ' + heartsCollected + ' hearts collected \u2764', W / 2, H / 2 + 35);
+  if (secretCollected) {
+    ctx.fillStyle = '#ffab00';
+    ctx.font = 'bold 16px "Segoe UI", sans-serif';
+    ctx.fillText('\u2B50 Secret heart found! \u2B50', W / 2, H / 2 + 65);
+  }
   ctx.restore();
 }
 
@@ -1354,7 +1392,6 @@ function updateGame() {
     }
   }
 
-  // Jump
   if ((keys['Space'] || keys['KeyW'] || keys['ArrowUp']) && player.onGround) {
     player.vy = JUMP_FORCE;
     player.onGround = false;
@@ -1362,14 +1399,13 @@ function updateGame() {
     playSFX('jump');
   }
 
-  // Fall off screen
   if (player.y > H + 50) {
     playSFX('broken');
+    screenShakeIntensity = 8;
     restartLevel();
     return;
   }
 
-  // Collect hearts
   for (const h of hearts) {
     if (h.collected) continue;
     const dx = (player.x + player.w / 2) - h.x;
@@ -1383,33 +1419,41 @@ function updateGame() {
     }
   }
 
-  // Broken hearts collision
+  // Secret heart collection
+  if (secretHeart && !secretHeart.collected) {
+    const dx = (player.x + player.w / 2) - secretHeart.x;
+    const dy = (player.y + player.h / 2) - secretHeart.y;
+    if (Math.sqrt(dx * dx + dy * dy) < 24) {
+      secretHeart.collected = true;
+      secretCollected = true;
+      spawnHeartParticles(secretHeart.x, secretHeart.y);
+      spawnConfetti(20);
+      spawnMeow(secretHeart.x, secretHeart.y - 10, '\u2B50 Secret!');
+      playSFX('secret');
+    }
+  }
+
   for (const b of brokenHearts) {
     if (!b.active) continue;
     const dx = (player.x + player.w / 2) - b.x;
     const dy = (player.y + player.h / 2) - b.y;
     if (Math.sqrt(dx * dx + dy * dy) < 24) {
-      playSFX('broken');
+      screenShakeIntensity = 10;
       restartLevel();
       return;
     }
   }
 
-  // Paw prints
-  if (Math.abs(player.vx) > 0.5) {
-    if (frameCount % 6 === 0) {
-      pawPrints.push({
-        x: player.x + player.w / 2 + (player.facing === -1 ? 8 : -8),
-        y: player.y + player.h - 4,
-        size: 5 + Math.random() * 2,
-        alpha: 0.35,
-        vx: 0,
-        vy: 0,
-      });
-    }
+  // Heart trail
+  if (Math.abs(player.vx) > 0.5 && frameCount % 5 === 0) {
+    heartTrail.push({
+      x: player.x + player.w / 2 + (player.facing === -1 ? 10 : -10) + (Math.random() - 0.5) * 6,
+      y: player.y + player.h / 2 + (Math.random() - 0.5) * 4,
+      size: 4 + Math.random() * 4,
+      alpha: 0.4,
+    });
   }
 
-  // Win check
   if (rectCollision(player, cake)) {
     completeLevel();
   }
@@ -1426,13 +1470,11 @@ function updateParticles() {
     p.life -= 0.02;
     if (p.life <= 0) heartParticles.splice(i, 1);
   }
-  // Paw prints
-  for (let i = pawPrints.length - 1; i >= 0; i--) {
-    const p = pawPrints[i];
-    p.alpha -= 0.005;
-    if (p.alpha <= 0) pawPrints.splice(i, 1);
+  for (let i = heartTrail.length - 1; i >= 0; i--) {
+    const ht = heartTrail[i];
+    ht.alpha -= 0.008;
+    if (ht.alpha <= 0) heartTrail.splice(i, 1);
   }
-  // Text bubbles
   for (let i = textBubbles.length - 1; i >= 0; i--) {
     const tb = textBubbles[i];
     tb.y += tb.vy;
@@ -1441,7 +1483,6 @@ function updateParticles() {
   }
 }
 
-// Sparkles init
 function initSparkles() {
   sparkles = [];
   for (let i = 0; i < 20; i++) {
@@ -1463,8 +1504,16 @@ function updateSparkles() {
   }
 }
 
-// Main draw dispatcher
 function draw() {
+  ctx.save();
+
+  // Screen shake
+  if (screenShakeIntensity > 0) {
+    const sx = (Math.random() - 0.5) * screenShakeIntensity * 1.5;
+    const sy = (Math.random() - 0.5) * screenShakeIntensity * 1.5;
+    ctx.translate(sx, sy);
+  }
+
   ctx.clearRect(0, 0, W, H);
   ctx.buttons = [];
 
@@ -1476,11 +1525,17 @@ function draw() {
     drawGame();
     if (gameState === STATE.LEVEL_COMPLETE) drawLevelComplete();
   }
+
+  ctx.restore();
 }
 
-// Main update dispatcher
 function update() {
   frameCount++;
+
+  if (screenShakeIntensity > 0) {
+    screenShakeIntensity *= 0.85;
+    if (screenShakeIntensity < 0.3) screenShakeIntensity = 0;
+  }
 
   if (gameState === STATE.MENU) {
     updateSparkles();
@@ -1588,12 +1643,15 @@ function handleMove(x, y) {
   }
 }
 
-// Input
 document.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'Escape' && (gameState === STATE.PLAYING || gameState === STATE.LEVEL_COMPLETE)) {
     goToMenu();
+  }
+  if (e.code === 'KeyR' && (gameState === STATE.PLAYING || gameState === STATE.LEVEL_COMPLETE)) {
+    e.preventDefault();
+    restartLevel();
   }
 });
 document.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -1606,7 +1664,6 @@ canvas.addEventListener('mousedown', e => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
-  // Check for slider drag
   if (gameState === STATE.MENU) {
     for (const btn of (ctx.buttons || [])) {
       if (btn.action === 'slider' && btn.slider) {
@@ -1627,7 +1684,6 @@ canvas.addEventListener('click', e => {
   handleClick(e.clientX - rect.left, e.clientY - rect.top);
 });
 
-// Touch support for canvas
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   const rect = canvas.getBoundingClientRect();
@@ -1640,15 +1696,10 @@ canvas.addEventListener('touchmove', e => {
   const rect = canvas.getBoundingClientRect();
   const touch = e.changedTouches[0];
   handleMove(touch.clientX - rect.left, touch.clientY - rect.top);
-  // Touch drag for sliders
-  if (sliderDragging && gameState === STATE.MENU) {
-    // handled by handleMove
-  }
 }, { passive: false });
 
 canvas.addEventListener('touchend', () => { sliderDragging = null; });
 
-// Keyboard also triggers game actions
 document.addEventListener('keydown', e => {
   if (e.code === 'Enter' || e.code === 'Space') {
     if (gameState === STATE.MENU) { handleClick(W / 2, 253); }
@@ -1657,7 +1708,6 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyM') toggleMusic();
 });
 
-// Slideshow final overlay buttons
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('slide-prev').addEventListener('click', prevSlide);
   document.getElementById('slide-next').addEventListener('click', nextSlide);
@@ -1684,7 +1734,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// roundRect polyfill
 if (!CanvasRenderingContext2D.prototype.roundRect) {
   CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
     if (r > w / 2) r = w / 2;
@@ -1702,7 +1751,6 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 preloadSlideImages();
 loadProgress();
 
-// Load volume settings
 try {
   const mv = parseFloat(localStorage.getItem('eya_musicVol'));
   if (mv >= 0 && mv <= 1) musicVolume = mv;
@@ -1712,7 +1760,6 @@ try {
 
 initSparkles();
 
-// Apply music volume to audio element
 const audioEl = document.getElementById('bgm');
 if (audioEl) audioEl.volume = musicVolume;
 

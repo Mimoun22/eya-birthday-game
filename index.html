@@ -277,6 +277,20 @@ const keys = {};
 let mouseX = 0, mouseY = 0;
 let mousePressed = false;
 
+// Sound state
+let sfxVolume = 0.5;
+let musicVolume = 0.5;
+let audioCtx = null;
+
+// Particles & effects
+let pawPrints = [];
+let textBubbles = [];
+let sparkles = [];
+let sliderDragging = null;
+
+// LocalStorage progress
+let unlockedLevel = 0;
+
 const levels = [
   {
     name: 'First Steps',
@@ -476,6 +490,155 @@ function showFinalOverlay() {
   resetSlideTimer();
 }
 
+// Audio
+function initAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playSFX(type) {
+  if (!audioCtx) return;
+  if (sfxVolume <= 0) return;
+  const vol = sfxVolume;
+  const now = audioCtx.currentTime;
+
+  if (type === 'jump') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(350, now);
+    osc.frequency.linearRampToValueAtTime(700, now + 0.1);
+    gain.gain.setValueAtTime(vol * 0.12, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.15);
+    osc.start(now);
+    osc.stop(now + 0.15);
+  } else if (type === 'collect') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523, now);
+    osc.frequency.setValueAtTime(659, now + 0.07);
+    gain.gain.setValueAtTime(vol * 0.12, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.18);
+    osc.start(now);
+    osc.stop(now + 0.18);
+  } else if (type === 'broken') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+    gain.gain.setValueAtTime(vol * 0.06, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  } else if (type === 'complete') {
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      const t = now + i * 0.1;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(vol * 0.12, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    });
+  } else if (type === 'meow') {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(500, now);
+    osc.frequency.linearRampToValueAtTime(900, now + 0.08);
+    osc.frequency.linearRampToValueAtTime(650, now + 0.12);
+    osc.frequency.linearRampToValueAtTime(750, now + 0.18);
+    gain.gain.setValueAtTime(vol * 0.1, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.25);
+    osc.start(now);
+    osc.stop(now + 0.25);
+  }
+}
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  initAudioCtx();
+  const audio = document.getElementById('bgm');
+  if (audio) {
+    audio.muted = false;
+    audio.volume = musicVolume;
+    audio.play().catch(() => {});
+    musicOn = true;
+  }
+}
+
+function toggleMusic() {
+  const audio = document.getElementById('bgm');
+  if (!audio) return;
+  if (musicOn) {
+    audio.muted = true;
+    audio.pause();
+    musicOn = false;
+  } else {
+    audio.muted = false;
+    audio.volume = musicVolume;
+    audio.play().catch(() => {});
+    musicOn = true;
+  }
+}
+
+// Start music on load
+(function initAudio() {
+  const audio = document.getElementById('bgm');
+  if (audio) {
+    audio.muted = true;
+    audio.play().catch(() => {});
+    setTimeout(() => {
+      audio.play().then(() => {
+        audio.muted = false;
+        audio.volume = musicVolume;
+        musicOn = true;
+        audioUnlocked = true;
+        initAudioCtx();
+      }).catch(() => {});
+    }, 100);
+  }
+})();
+
+// Save / load progress
+function saveProgress() {
+  try {
+    const val = Math.max(unlockedLevel, parseInt(localStorage.getItem('eya_unlocked') || '0', 10));
+    unlockedLevel = val;
+  } catch (e) { /* ignore */ }
+}
+
+function loadProgress() {
+  try {
+    const val = parseInt(localStorage.getItem('eya_unlocked') || '0', 10);
+    unlockedLevel = Math.max(0, Math.min(val, levels.length - 1));
+  } catch (e) { unlockedLevel = 0; }
+}
+
+function advanceProgress(completedLevel) {
+  const next = completedLevel + 1;
+  if (next > unlockedLevel && next < levels.length) {
+    unlockedLevel = next;
+    try { localStorage.setItem('eya_unlocked', String(unlockedLevel)); } catch (e) { /* ignore */ }
+  }
+}
+
 // Level management
 function loadLevel(index) {
   const lv = levels[index];
@@ -494,11 +657,13 @@ function loadLevel(index) {
   levelCompleted = false;
   confetti = [];
   heartParticles = [];
+  pawPrints = [];
   gameState = STATE.PLAYING;
 }
 
 function restartLevel() {
   loadLevel(currentLevel);
+  playSFX('broken');
 }
 
 function goToMenu() {
@@ -515,6 +680,8 @@ function completeLevel() {
   gameState = STATE.LEVEL_COMPLETE;
   levelCompleteTimer = 90;
   spawnConfetti(50);
+  playSFX('complete');
+  advanceProgress(currentLevel);
 }
 
 // Drawing helpers
@@ -542,7 +709,6 @@ function drawBrokenHeart(x, y, size) {
   ctx.bezierCurveTo(size, size * 0.1, size * 0.5, -size * 0.3, 0, size * 0.3);
   ctx.fill();
   ctx.stroke();
-  // crack line
   ctx.strokeStyle = '#616161';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -554,7 +720,6 @@ function drawBrokenHeart(x, y, size) {
   ctx.moveTo(3, size * 0.15);
   ctx.lineTo(1, size * 0.35);
   ctx.stroke();
-  // X eyes
   ctx.strokeStyle = '#616161';
   ctx.lineWidth = 1.5;
   const es = size * 0.2;
@@ -598,6 +763,24 @@ function drawCake(x, y) {
   ctx.restore();
 }
 
+function drawPawPrint(x, y, size, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(233,30,99,0.12)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, size * 0.5, size * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.arc(x + i * size * 0.28, y - size * 0.42, size * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.arc(x, y - size * 0.54, size * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawCat(x, y, w, h, facing, moving) {
   ctx.save();
   ctx.translate(x + w / 2, y + h / 2);
@@ -613,7 +796,6 @@ function drawCat(x, y, w, h, facing, moving) {
   ctx.arc(0, -8, w * 0.38, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  // ears
   ctx.fillStyle = '#fff5f5';
   for (let s of [-1, 1]) {
     ctx.beginPath();
@@ -631,7 +813,6 @@ function drawCat(x, y, w, h, facing, moving) {
   ctx.beginPath();
   ctx.moveTo(13, -16); ctx.lineTo(15, -24); ctx.lineTo(7, -18); ctx.closePath();
   ctx.fill();
-  // bow
   ctx.fillStyle = '#e91e63';
   ctx.beginPath();
   ctx.moveTo(-8, -17); ctx.lineTo(-4, -14); ctx.lineTo(-8, -11); ctx.closePath();
@@ -643,7 +824,6 @@ function drawCat(x, y, w, h, facing, moving) {
   ctx.beginPath();
   ctx.arc(0, -14, 2.5, 0, Math.PI * 2);
   ctx.fill();
-  // eyes
   const blink = Math.sin(Date.now() / 3000) > 0.85 ? 0 : 4;
   ctx.fillStyle = '#4a2c2c';
   ctx.beginPath();
@@ -661,12 +841,10 @@ function drawCat(x, y, w, h, facing, moving) {
     ctx.arc(6, -10, 1.2, 0, Math.PI * 2);
     ctx.fill();
   }
-  // nose
   ctx.fillStyle = '#f48fb1';
   ctx.beginPath();
   ctx.moveTo(0, -5); ctx.lineTo(-2, -3); ctx.lineTo(2, -3); ctx.closePath();
   ctx.fill();
-  // mouth
   ctx.strokeStyle = '#f48fb1';
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -675,7 +853,6 @@ function drawCat(x, y, w, h, facing, moving) {
   ctx.beginPath();
   ctx.arc(2, -2, 2, Math.PI * 1.2, Math.PI * 1.8);
   ctx.stroke();
-  // whiskers
   ctx.strokeStyle = '#f8bbd0';
   ctx.lineWidth = 0.8;
   for (let i = -1; i <= 1; i++) {
@@ -688,7 +865,6 @@ function drawCat(x, y, w, h, facing, moving) {
     ctx.lineTo(16 + i, -8 + i * 3);
     ctx.stroke();
   }
-  // tail
   ctx.strokeStyle = '#fff5f5';
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
@@ -697,7 +873,6 @@ function drawCat(x, y, w, h, facing, moving) {
   ctx.moveTo(-facing * 14, 6);
   ctx.quadraticCurveTo(-facing * 24, -4 + tailWag * 8, -facing * 18, -12 + tailWag * 8);
   ctx.stroke();
-  // legs
   for (let s of [-1, 1]) {
     ctx.fillStyle = '#fff5f5';
     ctx.strokeStyle = '#f8bbd0';
@@ -746,6 +921,51 @@ function spawnHeartParticles(x, y) {
   }
 }
 
+function spawnMeow(x, y) {
+  textBubbles.push({
+    x: x + (Math.random() - 0.5) * 10,
+    y: y - 10,
+    vy: -1.2,
+    life: 1,
+    text: 'Meow!',
+  });
+  playSFX('meow');
+}
+
+function drawSlider(sl) {
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = '13px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#ad1457';
+  ctx.fillText(sl.label, sl.x, sl.y + sl.h / 2);
+  const tx = sl.x + 80;
+  const ty = sl.y + sl.h / 2;
+  const tw = 120;
+  const th = 6;
+  ctx.fillStyle = 'rgba(233,30,99,0.15)';
+  ctx.beginPath();
+  ctx.roundRect(tx, ty - th / 2, tw, th, 3);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(233,30,99,0.5)';
+  ctx.beginPath();
+  ctx.roundRect(tx, ty - th / 2, tw * sl.value, th, 3);
+  ctx.fill();
+  const hx = tx + tw * sl.value;
+  ctx.fillStyle = '#e91e63';
+  ctx.shadowColor = 'rgba(233,30,99,0.3)';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(hx, ty, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'right';
+  ctx.font = '11px "Segoe UI", sans-serif';
+  ctx.fillStyle = '#999';
+  ctx.fillText(Math.round(sl.value * 100) + '%', tx + tw + 30, ty);
+  ctx.restore();
+}
+
 function rectCollision(a, b) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
@@ -763,6 +983,25 @@ function drawMenu() {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+
+  // Sparkles
+  for (const s of sparkles) {
+    const twinkle = Math.sin(s.phase + frameCount * 0.04) * 0.5 + 0.5;
+    ctx.save();
+    ctx.globalAlpha = twinkle * 0.35;
+    ctx.translate(s.x, s.y);
+    ctx.rotate(frameCount * 0.01 + s.rot);
+    ctx.fillStyle = '#fff';
+    const sz = s.size;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.lineTo(Math.cos(a) * sz, Math.sin(a) * sz * 0.3);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
 
   const pulse = Math.sin(Date.now() / 600) * 0.03 + 1;
 
@@ -799,7 +1038,7 @@ function drawMenu() {
   drawCat(609, 88, 36, 36, -1, false);
 
   // Play button
-  const bx = W / 2 - 80, by = 240, bw = 160, bh = 50;
+  const bx = W / 2 - 80, by = 230, bw = 160, bh = 46;
   const hover = mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh;
   ctx.shadowColor = 'rgba(233,30,99,0.3)';
   ctx.shadowBlur = hover ? 16 : 8;
@@ -808,31 +1047,29 @@ function drawMenu() {
   ctx.roundRect(bx, by, bw, bh, 25);
   ctx.fill();
   ctx.shadowBlur = 0;
-  ctx.font = 'bold 22px "Segoe UI", sans-serif';
+  ctx.font = 'bold 20px "Segoe UI", sans-serif';
   ctx.fillStyle = '#fff';
   ctx.fillText('Play', W / 2, by + bh / 2);
   ctx.buttons = ctx.buttons || [];
   ctx.buttons.push({ x: bx, y: by, w: bw, h: bh, action: 'play' });
 
-  // Music button
-  const mx = W / 2 - 70, my = 320, mw = 140, mh = 42;
-  const mHover = mouseX >= mx && mouseX <= mx + mw && mouseY >= my && mouseY <= my + mh;
-  ctx.fillStyle = mHover ? 'rgba(233,30,99,0.2)' : 'rgba(233,30,99,0.1)';
-  ctx.strokeStyle = 'rgba(233,30,99,0.3)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(mx, my, mw, mh, 21);
-  ctx.fill();
-  ctx.stroke();
-  ctx.font = '16px "Segoe UI", sans-serif';
-  ctx.fillStyle = '#ad1457';
-  ctx.fillText((musicOn ? '\uD83D\uDD0A' : '\uD83D\uDD07') + ' Music: ' + (musicOn ? 'ON' : 'OFF'), W / 2, my + mh / 2);
-  ctx.buttons.push({ x: mx, y: my, w: mw, h: mh, action: 'music' });
+  // Volume sliders
+  const s1 = { x: W / 2 - 100, y: 297, w: 200, h: 28, value: musicVolume, label: '\uD83C\uDFB5 Music', key: 'musicVolume' };
+  const s2 = { x: W / 2 - 100, y: 330, w: 200, h: 28, value: sfxVolume, label: '\uD83C\uDFB6 SFX', key: 'sfxVolume' };
+  drawSlider(s1);
+  drawSlider(s2);
+  ctx.buttons.push({ x: W / 2 - 20, y: 297, w: 140, h: 28, action: 'slider', slider: s1 });
+  ctx.buttons.push({ x: W / 2 - 20, y: 330, w: 140, h: 28, action: 'slider', slider: s2 });
+  // Hit areas for track + handle
+  for (const sl of [s1, s2]) {
+    const tx = sl.x + 80;
+    ctx.buttons.push({ x: tx, y: 282, w: 120, h: 42, action: 'slider', slider: sl });
+  }
 
   // Controls hint
-  ctx.font = '13px "Segoe UI", sans-serif';
+  ctx.font = '12px "Segoe UI", sans-serif';
   ctx.fillStyle = '#d81b60';
-  ctx.fillText('\u2190 \u2192 / A D  |  SPACE / W / \u2191 to jump', W / 2, 420);
+  ctx.fillText('\u2190 \u2192 / A D  |  SPACE / W / \u2191 to jump  |  M = music', W / 2, 400);
 
   ctx.restore();
 }
@@ -859,10 +1096,11 @@ function drawLevelSelect() {
     const lv = levels[i];
     const by = startY + i * gap;
     const bx = 130, bw = 540, bh = 70;
-    const hover = mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh;
+    const locked = i > unlockedLevel;
+    const hover = !locked && mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh;
 
     // Card background
-    ctx.fillStyle = hover ? '#fff5f7' : '#fff';
+    ctx.fillStyle = locked ? '#f5f5f5' : (hover ? '#fff5f7' : '#fff');
     ctx.shadowColor = 'rgba(233,30,99,0.12)';
     ctx.shadowBlur = hover ? 16 : 8;
     ctx.beginPath();
@@ -870,8 +1108,16 @@ function drawLevelSelect() {
     ctx.fill();
     ctx.shadowBlur = 0;
 
+    if (locked) {
+      // Lock overlay
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, 12);
+      ctx.fill();
+    }
+
     // Accent bar
-    ctx.fillStyle = ['#f48fb1','#f06292','#ec407a','#e91e63'][i];
+    ctx.fillStyle = locked ? '#ccc' : ['#f48fb1','#f06292','#ec407a','#e91e63'][i];
     ctx.beginPath();
     ctx.roundRect(bx, by, 6, bh, 3);
     ctx.fill();
@@ -880,12 +1126,12 @@ function drawLevelSelect() {
     ctx.font = '24px "Segoe UI", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#333';
-    ctx.fillText(`Lv.${i + 1}`, bx + 22, by + 24);
+    ctx.fillStyle = locked ? '#bbb' : '#333';
+    ctx.fillText(locked ? '\uD83D\uDD12' : `Lv.${i + 1}`, bx + 22, by + 24);
 
     ctx.font = '16px "Segoe UI", sans-serif';
-    ctx.fillStyle = '#555';
-    ctx.fillText(lv.name, bx + 22, by + 50);
+    ctx.fillStyle = locked ? '#ccc' : '#555';
+    ctx.fillText(locked ? 'Complete previous level to unlock' : lv.name, bx + 22, by + 50);
 
     // Difficulty hearts
     ctx.textAlign = 'right';
@@ -893,20 +1139,21 @@ function drawLevelSelect() {
       const hx = bx + bw - 18 - d * 22;
       const hy = by + 24;
       if (d < lv.difficulty) {
-        drawHeart(hx, hy, 7, '#e91e63');
+        drawHeart(hx, hy, 7, locked ? '#ddd' : '#e91e63');
       } else {
         drawHeart(hx, hy, 7, '#e0e0e0');
       }
     }
 
-    // Subtitle
     ctx.textAlign = 'right';
     ctx.font = '12px "Segoe UI", sans-serif';
-    ctx.fillStyle = '#999';
-    ctx.fillText(lv.subtitle, bx + bw - 18, by + 50);
+    ctx.fillStyle = locked ? '#ddd' : '#999';
+    ctx.fillText(locked ? '\uD83D\uDD12' : lv.subtitle, bx + bw - 18, by + 50);
 
     ctx.textAlign = 'center';
-    ctx.buttons.push({ x: bx, y: by, w: bw, h: bh, action: 'level', level: i });
+    if (!locked) {
+      ctx.buttons.push({ x: bx, y: by, w: bw, h: bh, action: 'level', level: i });
+    }
   }
 
   // Back button
@@ -975,6 +1222,25 @@ function drawGame() {
     ctx.globalAlpha = 1;
   }
 
+  // Paw prints
+  for (const pp of pawPrints) {
+    drawPawPrint(pp.x, pp.y, pp.size, pp.alpha);
+  }
+
+  // Text bubbles
+  for (const tb of textBubbles) {
+    ctx.save();
+    ctx.globalAlpha = tb.life;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 16px "Segoe UI", sans-serif';
+    ctx.fillStyle = '#e91e63';
+    ctx.shadowColor = 'rgba(255,255,255,1)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(tb.text, tb.x, tb.y);
+    ctx.restore();
+  }
+
   // Player
   const moving = Math.abs(player.vx) > 0.5;
   drawCat(player.x, player.y, player.w, player.h, player.facing, moving);
@@ -1004,7 +1270,6 @@ function drawGame() {
   ctx.fillText('Lv.' + (currentLevel + 1) + ': ' + levels[currentLevel].name, W - 12, 10);
   ctx.shadowBlur = 0;
 
-  // Level hint (first 3 seconds)
   if (frameCount < 180 && levels[currentLevel].hint) {
     ctx.textAlign = 'center';
     ctx.font = '13px "Segoe UI", sans-serif';
@@ -1048,14 +1313,12 @@ function drawLevelComplete() {
 function updateGame() {
   if (levelCompleted) return;
 
-  // Input
   let moveX = 0;
   if (keys['ArrowLeft'] || keys['KeyA']) moveX = -1;
   if (keys['ArrowRight'] || keys['KeyD']) moveX = 1;
 
   if (moveX !== 0) player.facing = moveX > 0 ? 1 : -1;
 
-  // Smooth movement
   if (moveX !== 0) {
     player.vx += moveX * MOVE_ACCEL;
     if (Math.abs(player.vx) > MAX_SPEED) player.vx = Math.sign(player.vx) * MAX_SPEED;
@@ -1066,7 +1329,6 @@ function updateGame() {
 
   player.x += player.vx;
 
-  // Horizontal collision
   for (const p of platforms) {
     if (rectCollision(player, p)) {
       if (player.vx > 0) player.x = p.x - player.w;
@@ -1074,12 +1336,10 @@ function updateGame() {
     }
   }
 
-  // Gravity
   player.vy += GRAVITY;
   player.y += player.vy;
   player.onGround = false;
 
-  // Vertical collision
   for (const p of platforms) {
     if (rectCollision(player, p)) {
       if (player.vy > 0) {
@@ -1097,10 +1357,16 @@ function updateGame() {
   if ((keys['Space'] || keys['KeyW'] || keys['ArrowUp']) && player.onGround) {
     player.vy = JUMP_FORCE;
     player.onGround = false;
+    spawnMeow(player.x + player.w / 2, player.y);
+    playSFX('jump');
   }
 
   // Fall off screen
-  if (player.y > H + 50) restartLevel();
+  if (player.y > H + 50) {
+    playSFX('broken');
+    restartLevel();
+    return;
+  }
 
   // Collect hearts
   for (const h of hearts) {
@@ -1111,6 +1377,8 @@ function updateGame() {
       h.collected = true;
       heartsCollected++;
       spawnHeartParticles(h.x, h.y);
+      playSFX('collect');
+      spawnMeow(h.x, h.y - 10);
     }
   }
 
@@ -1120,9 +1388,23 @@ function updateGame() {
     const dx = (player.x + player.w / 2) - b.x;
     const dy = (player.y + player.h / 2) - b.y;
     if (Math.sqrt(dx * dx + dy * dy) < 24) {
-      // Restart level
+      playSFX('broken');
       restartLevel();
       return;
+    }
+  }
+
+  // Paw prints
+  if (Math.abs(player.vx) > 0.5) {
+    if (frameCount % 6 === 0) {
+      pawPrints.push({
+        x: player.x + player.w / 2 + (player.facing === -1 ? 8 : -8),
+        y: player.y + player.h - 4,
+        size: 5 + Math.random() * 2,
+        alpha: 0.35,
+        vx: 0,
+        vy: 0,
+      });
     }
   }
 
@@ -1142,6 +1424,41 @@ function updateParticles() {
     p.vy += 0.08;
     p.life -= 0.02;
     if (p.life <= 0) heartParticles.splice(i, 1);
+  }
+  // Paw prints
+  for (let i = pawPrints.length - 1; i >= 0; i--) {
+    const p = pawPrints[i];
+    p.alpha -= 0.005;
+    if (p.alpha <= 0) pawPrints.splice(i, 1);
+  }
+  // Text bubbles
+  for (let i = textBubbles.length - 1; i >= 0; i--) {
+    const tb = textBubbles[i];
+    tb.y += tb.vy;
+    tb.life -= 0.015;
+    if (tb.life <= 0) textBubbles.splice(i, 1);
+  }
+}
+
+// Sparkles init
+function initSparkles() {
+  sparkles = [];
+  for (let i = 0; i < 20; i++) {
+    sparkles.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: 3 + Math.random() * 8,
+      phase: Math.random() * Math.PI * 2,
+      rot: Math.random() * Math.PI * 2,
+      vy: -0.1 - Math.random() * 0.2,
+    });
+  }
+}
+
+function updateSparkles() {
+  for (const s of sparkles) {
+    s.y += s.vy;
+    if (s.y < -20) { s.y = H + 20; s.x = Math.random() * W; }
   }
 }
 
@@ -1164,11 +1481,12 @@ function draw() {
 function update() {
   frameCount++;
 
-  if (gameState === STATE.PLAYING) {
+  if (gameState === STATE.MENU) {
+    updateSparkles();
+  } else if (gameState === STATE.PLAYING) {
     updateGame();
   } else if (gameState === STATE.LEVEL_COMPLETE) {
     levelCompleteTimer--;
-    // Update confetti
     for (let i = confetti.length - 1; i >= 0; i--) {
       const c = confetti[i];
       c.x += c.vx; c.y += c.vy;
@@ -1178,6 +1496,7 @@ function update() {
     }
     if (frameCount % 8 === 0) spawnConfetti(2);
     updateParticles();
+    updateSparkles();
 
     if (levelCompleteTimer <= 0) {
       if (currentLevel < levels.length - 1) {
@@ -1185,7 +1504,6 @@ function update() {
         loadLevel(currentLevel);
         frameCount = 0;
       } else {
-        // All levels done!
         allLevelsDone = true;
         showFinalOverlay();
       }
@@ -1199,12 +1517,30 @@ function handleClick(x, y) {
   mouseY = y;
 
   if (gameState === STATE.MENU) {
-    // Re-draw to populate buttons
     draw();
     for (const btn of ctx.buttons || []) {
       if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
         if (btn.action === 'play') goToLevelSelect();
         else if (btn.action === 'music') toggleMusic();
+        else if (btn.action === 'slider') {
+          const sl = btn.slider;
+          if (sl) {
+            const tx = sl.x + 80;
+            const tw = 120;
+            let val = (x - tx) / tw;
+            val = Math.max(0, Math.min(1, val));
+            sl.value = val;
+            if (sl.key === 'musicVolume') {
+              musicVolume = val;
+              const audio = document.getElementById('bgm');
+              if (audio) audio.volume = val;
+              try { localStorage.setItem('eya_musicVol', String(val)); } catch (e) { /* ignore */ }
+            } else if (sl.key === 'sfxVolume') {
+              sfxVolume = val;
+              try { localStorage.setItem('eya_sfxVol', String(val)); } catch (e) { /* ignore */ }
+            }
+          }
+        }
         return;
       }
     }
@@ -1213,10 +1549,12 @@ function handleClick(x, y) {
     for (const btn of ctx.buttons || []) {
       if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
         if (btn.action === 'level') {
-          currentLevel = btn.level;
-          loadLevel(currentLevel);
-          frameCount = 0;
-          unlockAudio();
+          if (btn.level <= unlockedLevel) {
+            currentLevel = btn.level;
+            loadLevel(currentLevel);
+            frameCount = 0;
+            unlockAudio();
+          }
         } else if (btn.action === 'menu') {
           goToMenu();
         }
@@ -1224,7 +1562,6 @@ function handleClick(x, y) {
       }
     }
   } else if (gameState === STATE.PLAYING || gameState === STATE.LEVEL_COMPLETE) {
-    // Click on canvas during game - no buttons, just for audio
     unlockAudio();
   }
 }
@@ -1232,50 +1569,23 @@ function handleClick(x, y) {
 function handleMove(x, y) {
   mouseX = x;
   mouseY = y;
-}
 
-// Audio
-function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  const audio = document.getElementById('bgm');
-  if (audio) {
-    audio.muted = false;
-    audio.play().catch(() => {});
-    musicOn = true;
+  if (sliderDragging) {
+    const sl = sliderDragging;
+    const tx = sl.x + 80;
+    const tw = 120;
+    let val = (x - tx) / tw;
+    val = Math.max(0, Math.min(1, val));
+    sl.value = val;
+    if (sl.key === 'musicVolume') {
+      musicVolume = val;
+      const audio = document.getElementById('bgm');
+      if (audio) audio.volume = val;
+    } else if (sl.key === 'sfxVolume') {
+      sfxVolume = val;
+    }
   }
 }
-
-function toggleMusic() {
-  const audio = document.getElementById('bgm');
-  if (!audio) return;
-  if (musicOn) {
-    audio.muted = true;
-    audio.pause();
-    musicOn = false;
-  } else {
-    audio.muted = false;
-    audio.play().catch(() => {});
-    musicOn = true;
-  }
-}
-
-// Start music on load (will likely be muted by autoplay policy)
-(function initAudio() {
-  const audio = document.getElementById('bgm');
-  if (audio) {
-    audio.muted = true;
-    audio.play().catch(() => {});
-    // Try to unmute after a short delay (some browsers allow it)
-    setTimeout(() => {
-      audio.play().then(() => {
-        audio.muted = false;
-        musicOn = true;
-        audioUnlocked = true;
-      }).catch(() => {});
-    }, 100);
-  }
-})();
 
 // Input
 document.addEventListener('keydown', e => {
@@ -1291,6 +1601,26 @@ canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
   handleMove(e.clientX - rect.left, e.clientY - rect.top);
 });
+canvas.addEventListener('mousedown', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  // Check for slider drag
+  if (gameState === STATE.MENU) {
+    for (const btn of (ctx.buttons || [])) {
+      if (btn.action === 'slider' && btn.slider) {
+        const sl = btn.slider;
+        const tx = sl.x + 80;
+        const ty = sl.y + sl.h / 2;
+        if (x >= tx - 10 && x <= tx + 130 && y >= ty - 15 && y <= ty + 15) {
+          sliderDragging = sl;
+          return;
+        }
+      }
+    }
+  }
+});
+canvas.addEventListener('mouseup', () => { sliderDragging = null; });
 canvas.addEventListener('click', e => {
   const rect = canvas.getBoundingClientRect();
   handleClick(e.clientX - rect.left, e.clientY - rect.top);
@@ -1309,12 +1639,18 @@ canvas.addEventListener('touchmove', e => {
   const rect = canvas.getBoundingClientRect();
   const touch = e.changedTouches[0];
   handleMove(touch.clientX - rect.left, touch.clientY - rect.top);
+  // Touch drag for sliders
+  if (sliderDragging && gameState === STATE.MENU) {
+    // handled by handleMove
+  }
 }, { passive: false });
+
+canvas.addEventListener('touchend', () => { sliderDragging = null; });
 
 // Keyboard also triggers game actions
 document.addEventListener('keydown', e => {
   if (e.code === 'Enter' || e.code === 'Space') {
-    if (gameState === STATE.MENU) { handleClick(W / 2, 265); }
+    if (gameState === STATE.MENU) { handleClick(W / 2, 253); }
     else if (gameState === STATE.LEVEL_SELECT) { e.preventDefault(); handleClick(W / 2, 150); }
   }
   if (e.code === 'KeyM') toggleMusic();
@@ -1363,6 +1699,21 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
 // Init
 preloadSlideImages();
+loadProgress();
+
+// Load volume settings
+try {
+  const mv = parseFloat(localStorage.getItem('eya_musicVol'));
+  if (mv >= 0 && mv <= 1) musicVolume = mv;
+  const sv = parseFloat(localStorage.getItem('eya_sfxVol'));
+  if (sv >= 0 && sv <= 1) sfxVolume = sv;
+} catch (e) { /* ignore */ }
+
+initSparkles();
+
+// Apply music volume to audio element
+const audioEl = document.getElementById('bgm');
+if (audioEl) audioEl.volume = musicVolume;
 
 function gameLoop() {
   update();
